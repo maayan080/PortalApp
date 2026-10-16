@@ -1,0 +1,56 @@
+name: portal_app
+description: "Manage an Xbox in Developer Mode from Windows or Android through its Device Portal."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  archive: ^4.5.2
+  crypto: ^3.0.7
+  file_picker: ^13.1.0
+  path_provider: ^2.1.6
+  share_plus: ^13.3.1
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
+  xml: ^7.0.1
+  wakelock_plus: ^1.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+    - assets/fonts/OFL.txt
+  fonts:
+    - family: Karla
+      fonts:
+        - asset: assets/fonts/Karla-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Karla-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Karla-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Karla-Bold.ttf
+          weight: 700
+
+# generates the launcher icons from assets/logo.png: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  image_path: assets/logo.png
+  adaptive_icon_background: "#A85C06"
+  adaptive_icon_foreground: assets/logo.png
+  adaptive_icon_foreground_inset: 14
+  windows:
+    generate: true
+    image_path: assets/logo.png
+    icon_size: 256

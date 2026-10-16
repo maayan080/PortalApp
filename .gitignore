@@ -1,0 +1,54 @@
+# local only
+.local/
+
+# build output
+/build/
+/out/
+/dist/
+
+# flutter and dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/android/.gradle/
+/android/local.properties
+/android/key.properties
+*.jks
+*.keystore
+/ios/Pods/
+/ios/.symlinks/
+/windows/flutter/ephemeral/
+/linux/flutter/ephemeral/
+/macos/Flutter/ephemeral/
+*.iml
+
+# native intermediates
+*.obj
+*.exe
+*.pdb
+*.appx
+*.msix
+*.apk
+*.aab
+*.ipa
+
+# signing material, never commit
+*.pfx
+*.cer
+*.p12
+*.key
+
+# secrets
+.env
+.env.*
+
+# editor and os
+.vs/
+.idea/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini
