@@ -182,7 +182,7 @@ class CatalogApp {
 
   List<CatalogDownload> get packages => downloads.where((d) => d.role == DownloadRole.package).toList();
 
-  CatalogApp copyWith({List<CatalogDownload>? downloads, List<CatalogApp>? origins}) => CatalogApp(
+  CatalogApp copyWith({List<CatalogDownload>? downloads, List<CatalogApp>? origins, String? category}) => CatalogApp(
         slug: slug,
         base: base,
         name: name,
@@ -191,7 +191,7 @@ class CatalogApp {
         version: version,
         updated: updated,
         developer: developer,
-        category: category,
+        category: category ?? this.category,
         compatibility: compatibility,
         cover: cover,
         about: about,
@@ -244,3 +244,17 @@ bool isMediaFire(String? url) => url != null && Uri.tryParse(url)?.host.endsWith
 
 bool isGithubRelease(String? url) =>
     url != null && url.contains('github.com') && RegExp(r'/releases(/|$)').hasMatch(url) && !url.contains('/releases/download/');
+
+String normalizeCategory(String raw) {
+  final key = raw.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+  return switch (key) {
+    'media' || 'mediaapp' || 'mediaapps' => 'Media',
+    'port' || 'ports' || 'gameport' || 'gameports' => 'Port',
+    'emulator' || 'emulators' => 'Emulator',
+    'frontend' || 'frontends' || 'launcher' || 'launchers' || 'gamelauncher' || 'gamelaunchers' => 'Frontend',
+    'utility' || 'utilities' || 'tool' || 'tools' => 'Utility',
+    'experimental' || 'experimentalapp' || 'experimentalapps' => 'Experimental',
+    'app' || 'apps' || '' => 'App',
+    _ => raw.trim(),
+  };
+}

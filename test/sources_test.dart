@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koni_archive/io.dart' hide Archive;
 import 'package:portal_app/catalog/install_run.dart';
+import 'package:portal_app/catalog/models.dart' show normalizeCategory;
 import 'package:portal_app/catalog/sources/devstore_source.dart';
 import 'package:portal_app/catalog/sources/link_resolver.dart';
 import 'package:portal_app/catalog/sources/merge.dart';
@@ -240,5 +241,12 @@ void main() {
       expect(asked.single.toString(), 'https://api.github.com/repos/o/r/releases/latest');
       expect(out.mainPackage!.name, 'App_1.0.0.0_x64.msixbundle');
     });
+  });
+
+  test('category names that mean the same shelf become one', () {
+    expect(['Media', 'Media app', 'media apps'].map(normalizeCategory).toSet(), {'Media'});
+    expect(['Port', 'Game port', 'Ports'].map(normalizeCategory).toSet(), {'Port'});
+    expect(['Frontend', 'Game launcher'].map(normalizeCategory).toSet(), {'Frontend'});
+    expect(normalizeCategory('Something New'), 'Something New');
   });
 }

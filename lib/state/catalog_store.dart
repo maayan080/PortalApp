@@ -68,7 +68,7 @@ class CatalogStore extends ChangeNotifier {
       ]);
       final good = [for (final r in results) if (r != null) r];
       if (good.isEmpty) throw PortalException(sourceErrors.values.first);
-      apps = mergeApps([for (final r in good) r.apps]);
+      apps = [for (final a in mergeApps([for (final r in good) r.apps])) a.copyWith(category: normalizeCategory(a.category))];
       failed = [for (final r in good) ...r.failed];
       loaded = true;
     } catch (e) {
