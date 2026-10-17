@@ -6,7 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koni_archive/io.dart' hide Archive;
 import 'package:portal_app/catalog/install_run.dart';
-import 'package:portal_app/catalog/models.dart' show normalizeCategory;
+import 'package:portal_app/catalog/models.dart' show CatalogApp, isDesktopOnly, normalizeCategory;
 import 'package:portal_app/catalog/sources/devstore_source.dart';
 import 'package:portal_app/catalog/sources/link_resolver.dart';
 import 'package:portal_app/catalog/sources/merge.dart';
@@ -307,5 +307,24 @@ void main() {
     expect(['Port', 'Game port', 'Ports'].map(normalizeCategory).toSet(), {'Port'});
     expect(['Frontend', 'Game launcher'].map(normalizeCategory).toSet(), {'Frontend'});
     expect(normalizeCategory('Something New'), 'Something New');
+  });
+
+  test('pc and phone tools are not offered for a console', () {
+    CatalogApp app(String name, List<String> compat, List<String> files) => parseRevivalApi(jsonEncode({
+          'items': [
+            {
+              'id': name,
+              'title': name,
+              'compatibility': compat.isEmpty ? null : compat.first,
+              'downloads': [for (final f in files) {'label': 'Download', 'url': 'https://github.com/o/r/releases/download/v1/$f'}],
+            },
+          ],
+        })).single;
+    expect(isDesktopOnly(app('USB Tool', ['Windows OS'], ['Tool.exe'])), isTrue);
+    expect(isDesktopOnly(app('Vault', ['Desktop'], ['XBVault-v2.0.7-win-x64.zip'])), isTrue);
+    expect(isDesktopOnly(app('Setup only', [], ['App-win-x64-setup.exe', 'App-linux-x64.zip'])), isTrue);
+    expect(isDesktopOnly(app('Xbox Media Tool', [], ['XboxMediaUSB.v2.2.zip'])), isTrue);
+    expect(isDesktopOnly(app('Game', ['Xbox One & Series S|X'], ['Game_1.0.0.0_x64.msix'])), isFalse);
+    expect(isDesktopOnly(app('Game zip', [], ['Game-UWP-1.0.zip'])), isFalse);
   });
 }

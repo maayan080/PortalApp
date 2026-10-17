@@ -258,3 +258,14 @@ String normalizeCategory(String raw) {
     _ => raw.trim(),
   };
 }
+
+final _desktopFile = RegExp(r'\.(exe|msi|dmg|deb|rpm|apk|appimage|pkg)$|(^|[-_.])(win|windows|win32|win64|linux|osx|macos|mac|android)([-_.]|$)', caseSensitive: false);
+
+const _desktopTools = {'xboxmediatool', 'xbhomebrewvault', 'xbvault'};
+
+bool isDesktopOnly(CatalogApp app) {
+  if (_desktopTools.contains(app.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''))) return true;
+  if (app.compatibility.isNotEmpty && !app.compatibility.any((c) => c.toLowerCase().contains('xbox'))) return true;
+  final files = [for (final d in app.downloads) if (d.role != DownloadRole.checksum && d.role != DownloadRole.dependency) d];
+  return files.isNotEmpty && files.every((d) => _desktopFile.hasMatch(d.name));
+}
