@@ -90,17 +90,12 @@ class _StorePageState extends State<StorePage> {
               ),
               SearchField(controller: _search, hint: 'Search the store'),
               if (categories.length > 1)
-                SizedBox(
-                  height: 48,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: Brand.s4, vertical: Brand.s2),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Brand.s4, vertical: Brand.s2),
+                  child: Wrap(
+                    spacing: Brand.s2,
                     children: [
-                      for (final c in ['All', ...categories])
-                        Padding(
-                          padding: const EdgeInsets.only(right: Brand.s2),
-                          child: ChoiceChip(label: Text(c), selected: _category == c, onSelected: (_) => setState(() => _category = c)),
-                        ),
+                      for (final c in ['All', ...categories]) ChoiceChip(label: Text(c), selected: _category == c, onSelected: (_) => setState(() => _category = c)),
                     ],
                   ),
                 ),
