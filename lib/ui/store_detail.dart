@@ -65,6 +65,20 @@ class _StoreDetailState extends State<StoreDetail> {
     return pick == null ? o : o.withMain(pick);
   }
 
+  Uri? get _browseStart {
+    for (final l in _origin.links) {
+      final u = Uri.tryParse(l.url ?? '');
+      if (u != null && u.hasScheme) return u;
+    }
+    final src = Uri.tryParse(_origin.source);
+    return src != null && src.hasScheme ? src : null;
+  }
+
+  Future<void> _browse(Uri start) async {
+    final done = await browseAndInstall(context, widget.session, widget.catalog, _origin, start);
+    if (done) await widget.session.refresh();
+  }
+
   Future<void> _install() async {
     final done = await startStoreInstall(context, widget.session, widget.catalog, _target);
     if (done) await widget.session.refresh();
@@ -150,6 +164,11 @@ class _StoreDetailState extends State<StoreDetail> {
                 ],
                 if (match.status != AppStatus.newerThanCatalogue) SizedBox(width: double.infinity, child: action),
                 Padding(padding: const EdgeInsets.only(top: Brand.s3), child: Text(note, style: text.bodySmall?.copyWith(fontSize: 13))),
+                if (!target.installable && _browseStart != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: Brand.s3),
+                    child: SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => _browse(_browseStart!), child: const Text('Find the download'))),
+                  ),
               ]),
             ),
             const SectionLabel('About this build'),
@@ -185,7 +204,10 @@ class _StoreDetailState extends State<StoreDetail> {
                   title: d.label,
                   subtitle: [_role(d), if (d.architecture != null) d.architecture!, if (d.size != null) d.size!].join('  ·  '),
                   trailing: const Icon(Icons.open_in_new, size: 18, color: Brand.faint),
-                  onTap: () => openLink(context, app.resolve(d).toString()),
+                  onTap: () {
+                    final u = app.resolve(d);
+                    d.role == DownloadRole.link ? _browse(u) : openLink(context, u.toString());
+                  },
                 ),
             ],
             if (app.source.isNotEmpty) ...[
