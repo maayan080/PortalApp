@@ -103,10 +103,9 @@ class LocalPcClient extends PortalClient {
     }
     await _register(package, await readPackageInfo(package));
 
-    final after = matchFamily(await packages(), familyPrefix);
-    final hit = expectedVersion == null
-        ? (after.isEmpty ? null : after.first)
-        : after.where((p) => p.fullName.contains('_${expectedVersion}_')).firstOrNull;
+    final after = matchFamily(await packages(), familyPrefix)..sort((a, b) => b.version.compareTo(a.version));
+    final exact = expectedVersion == null ? null : after.where((p) => p.fullName.contains('_${expectedVersion}_')).firstOrNull;
+    final hit = exact ?? after.firstOrNull;
     if (hit != null) return hit;
     throw PortalException('Windows accepted the package, but ${expectedVersion ?? 'the new version'} is not in its app list.');
   }
