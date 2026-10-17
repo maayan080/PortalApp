@@ -103,7 +103,7 @@ class _BrowserPageState extends State<BrowserPage> {
                 if (u != null && u.hasScheme && mounted) setState(() => _page = u);
                 _refreshBack();
               },
-              onLoadStop: (_, __) => _refreshBack(),
+              onLoadStop: (_, _) => _refreshBack(),
               onProgressChanged: (_, p) => _progress.value = p / 100,
               shouldOverrideUrlLoading: (_, action) async {
                 final url = Uri.tryParse(action.request.url?.toString() ?? '');
@@ -133,7 +133,7 @@ class _BrowserPageState extends State<BrowserPage> {
                 }
                 return null;
               },
-              onCreateWindow: (_, __) async {
+              onCreateWindow: (_, _) async {
                 _popups.value++;
                 return false;
               },

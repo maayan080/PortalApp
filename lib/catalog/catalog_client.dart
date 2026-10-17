@@ -40,7 +40,7 @@ class CatalogClient {
 
   HttpClient _newHttp() => HttpClient()
     ..connectionTimeout = const Duration(seconds: 10)
-    ..userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PortalApp';
+    ..userAgent = 'PortalApp (+https://github.com/veroxsity/PortalApp)';
 
   Future<String> _text(Uri uri) async {
     final http = _newHttp();
