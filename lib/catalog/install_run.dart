@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:archive/archive_io.dart';
+import 'package:koni_archive/io.dart';
 import 'package:flutter/foundation.dart';
 
 import '../portal/install_plan.dart';
@@ -171,11 +171,24 @@ bool _isPackage(String path) {
 
 Future<List<File>> unpackPackages(File zip, Directory into) async {
   await into.create(recursive: true);
-  await extractFileToDisk(zip.path, into.path);
-  final found = [
-    await for (final e in into.list(recursive: true, followLinks: false))
-      if (e is File && _isPackage(e.path)) e,
-  ];
+  final found = <File>[];
+  final archive = await openArchiveFile(zip.path);
+  try {
+    for (final entry in archive.entries) {
+      if (entry.type != ArchiveEntryType.file || !_isPackage(entry.path)) continue;
+      final folder = await Directory('${into.path}${Platform.pathSeparator}${found.length}').create();
+      final out = File('${folder.path}${Platform.pathSeparator}${entry.path.split('/').last}');
+      final sink = out.openWrite();
+      try {
+        await sink.addStream(archive.openRead(entry));
+      } finally {
+        await sink.close();
+      }
+      found.add(out);
+    }
+  } finally {
+    await archive.close();
+  }
   if (found.isEmpty) throw PortalException('There is no app package inside ${zip.uri.pathSegments.last}.');
 
   final infos = <PackageInfo>[];

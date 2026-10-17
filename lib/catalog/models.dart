@@ -51,7 +51,7 @@ List<CatalogDownload> classifyDownloads(List<CatalogDownload> raw) {
     final name = d.name.toLowerCase();
     if (name.endsWith('.sha256') || name.endsWith('.sha-256') || RegExp(r'checksum|sha-?256').hasMatch(d.label.toLowerCase())) {
       out.add(d.withRole(DownloadRole.checksum));
-    } else if (name.endsWith('.zip')) {
+    } else if (name.endsWith('.zip') || name.endsWith('.7z')) {
       out.add(d.withRole(DownloadRole.archive));
     } else if (_hasPackageExtension(name)) {
       final dependency = RegExp(r'dependenc|framework|runtime').hasMatch(d.label.toLowerCase()) || name.startsWith('microsoft.');

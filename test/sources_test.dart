@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koni_archive/io.dart' hide Archive;
 import 'package:portal_app/catalog/install_run.dart';
-import 'package:portal_app/catalog/models.dart';
 import 'package:portal_app/catalog/sources/devstore_source.dart';
 import 'package:portal_app/catalog/sources/merge.dart';
 import 'package:portal_app/catalog/sources/revival_source.dart';
@@ -152,7 +153,7 @@ void main() {
     setUp(() async => dir = await Directory.systemTemp.createTemp('unpack'));
     tearDown(() => dir.delete(recursive: true));
 
-    List<int> package(String name) {
+    Uint8List package(String name) {
       final a = Archive()
         ..addFile(ArchiveFile.bytes(
             'AppxManifest.xml',
@@ -160,7 +161,7 @@ void main() {
                 '<Identity Name="$name" Publisher="CN=A" Version="1.0.0.0" ProcessorArchitecture="x64"/>'
                 '<Properties><DisplayName>$name</DisplayName></Properties></Package>')))
         ..addFile(ArchiveFile.bytes('AppxSignature.p7x', utf8.encode('sig')));
-      return ZipEncoder().encode(a);
+      return Uint8List.fromList(ZipEncoder().encode(a));
     }
 
     test('the app comes first and microsoft frameworks follow it', () async {
@@ -172,6 +173,18 @@ void main() {
 
       final files = await unpackPackages(zip, Directory('${dir.path}/out'));
       expect(files.map((f) => f.uri.pathSegments.last), ['Game_1.0.0.0_x64.msix', 'Microsoft.VCLibs.x64.14.00.appx']);
+    });
+
+    test('a 7z works the same way', () async {
+      final path = '${dir.path}/game.7z';
+      final w = await createArchiveFile(path, format: const SevenZWriteFormat());
+      await w.addBytes(ArchiveEntrySpec(path: 'Microsoft.VCLibs.x64.14.00.appx'), package('Microsoft.VCLibs.140.00'));
+      await w.addBytes(ArchiveEntrySpec(path: 'bin/Game_1.0.0.0_x64.appx'), package('Acme.Game'));
+      await w.close();
+
+      final files = await unpackPackages(File(path), Directory('${dir.path}/out7'));
+      expect(files.length, 2);
+      expect(files.first.path, contains('Game_1.0.0.0_x64.appx'));
     });
 
     test('a zip with no package says so', () async {
