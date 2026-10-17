@@ -14,6 +14,17 @@ import '../catalog/sources/store_source.dart';
 import '../portal/models.dart';
 import '../portal/package_info.dart';
 
+class StoreStatus {
+  const StoreStatus({required this.id, required this.name, required this.enabled, this.count, this.error});
+
+  final String id;
+  final String name;
+  final bool enabled;
+
+  final int? count;
+  final String? error;
+}
+
 class CatalogStore extends ChangeNotifier {
   CatalogStore({String? url, CatalogClient Function(String url)? clientFactory, List<StoreSource>? extraSources})
       : _url = url ?? defaultCatalogueUrl,
@@ -28,6 +39,10 @@ class CatalogStore extends ChangeNotifier {
 
   static const _urlKey = 'catalogue_url';
   static const _learnedKey = 'catalogue_learned';
+  static const _disabledKey = 'stores_disabled';
+
+  Set<String> _disabled = {};
+  final Map<String, int> _counts = {};
 
   String _url;
   List<CatalogApp> apps = [];
@@ -46,9 +61,39 @@ class CatalogStore extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _url = prefs.getString(_urlKey) ?? _url;
+      _disabled = (prefs.getStringList(_disabledKey) ?? const []).toSet();
       final raw = prefs.getString(_learnedKey);
       if (raw != null) _learned = (jsonDecode(raw) as Map).cast<String, String>();
     } catch (_) {}
+  }
+
+  List<StoreSource> _sources() => [RaccoonSource(client), ..._extra]..sort((a, b) => a.priority.compareTo(b.priority));
+
+  List<StoreStatus> get stores => [
+        for (final src in _sources())
+          StoreStatus(
+            id: src.id,
+            name: src.name,
+            enabled: !_disabled.contains(src.id),
+            count: _counts[src.id],
+            error: sourceErrors[src.name],
+          ),
+      ];
+
+  Future<void> setStoreEnabled(String id, bool on) async {
+    final next = {..._disabled};
+    if (on) {
+      next.remove(id);
+    } else {
+      next.add(id);
+      if (_sources().every((s) => next.contains(s.id))) return;
+    }
+    _disabled = next;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_disabledKey, _disabled.toList());
+    } catch (_) {}
+    await load();
   }
 
   Future<void> load() async {
@@ -58,7 +103,7 @@ class CatalogStore extends ChangeNotifier {
     notifyListeners();
     try {
       final c = client;
-      final sources = [RaccoonSource(c), ..._extra]..sort((a, b) => a.priority.compareTo(b.priority));
+      final sources = [for (final src in _sources()) if (!_disabled.contains(src.id)) src];
       final results = await Future.wait([
         for (final src in sources)
           src.load(c.text).then<CatalogLoad?>((r) => r).catchError((Object e) {
@@ -66,9 +111,16 @@ class CatalogStore extends ChangeNotifier {
             return null;
           }),
       ]);
-      final good = [for (final r in results) if (r != null) r];
+      final good = <CatalogLoad>[];
+      for (var i = 0; i < sources.length; i++) {
+        final r = results[i];
+        if (r == null) continue;
+        final kept = CatalogLoad([for (final a in r.apps) if (!isDesktopOnly(a)) a], r.failed);
+        _counts[sources[i].id] = kept.apps.length;
+        good.add(kept);
+      }
       if (good.isEmpty) throw PortalException(sourceErrors.values.first);
-      apps = [for (final a in mergeApps([for (final r in good) [for (final a in r.apps) if (!isDesktopOnly(a)) a]])) a.copyWith(category: normalizeCategory(a.category))];
+      apps = [for (final a in mergeApps([for (final r in good) r.apps])) a.copyWith(category: normalizeCategory(a.category))];
       failed = [for (final r in good) ...r.failed];
       loaded = true;
     } catch (e) {
