@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive_io.dart';
+import 'package:xml/xml.dart';
+
+import 'package_info.dart';
 import 'portal_client.dart';
 
 class LocalPcClient extends PortalClient {
@@ -90,8 +94,14 @@ class LocalPcClient extends PortalClient {
     final size = await package.length();
     onUpload?.call(0, size);
     onUpload?.call(size, size);
-    final deps = dependencies.isEmpty ? '' : ' -DependencyPath ${dependencies.map((d) => _q(d.path)).join(',')}';
-    await _ps('Add-AppxPackage -Path ${_q(package.path)}$deps -ForceApplicationShutdown');
+
+    final present = await packages();
+    for (final dep in dependencies) {
+      final info = await readPackageInfo(dep);
+      if (present.any((p) => p.name == info.name && p.version.compareTo(info.version) >= 0)) continue;
+      await _register(dep, info);
+    }
+    await _register(package, await readPackageInfo(package));
 
     final after = matchFamily(await packages(), familyPrefix);
     final hit = expectedVersion == null
@@ -101,8 +111,78 @@ class LocalPcClient extends PortalClient {
     throw PortalException('Windows accepted the package, but ${expectedVersion ?? 'the new version'} is not in its app list.');
   }
 
+  Future<void> _register(File file, PackageInfo info) async {
+    final dir = Directory('${_root.path}${Platform.pathSeparator}${info.name}_${info.version}');
+    await _unpack(file, dir);
+    await _ps('Add-AppxPackage -Register ${_q('${dir.path}${Platform.pathSeparator}AppxManifest.xml')} -ForceApplicationShutdown -ForceUpdateFromAnyVersion');
+  }
+
+  static Directory get _root =>
+      Directory('${Platform.environment['LOCALAPPDATA'] ?? Directory.systemTemp.path}${Platform.pathSeparator}PortalApp${Platform.pathSeparator}pc_test');
+
+  static const _skipped = {'[content_types].xml', 'appxblockmap.xml', 'appxsignature.p7x'};
+
+  static Future<void> _unpack(File file, Directory into) async {
+    await into.create(recursive: true);
+    final input = InputFileStream(file.path);
+    try {
+      final zip = ZipDecoder().decodeStream(input);
+      final bundle = zip.find('AppxMetadata/AppxBundleManifest.xml');
+      if (bundle != null) {
+        final inner = _pickFromBundle(String.fromCharCodes(bundle.readBytes() ?? const []));
+        final entry = inner == null ? null : zip.find(inner);
+        if (entry == null) throw PortalException('There is no app inside ${file.uri.pathSegments.last} for this PC.');
+        final tmp = File('${into.path}${Platform.pathSeparator}_inner.pkg');
+        final out = OutputFileStream(tmp.path);
+        entry.writeContent(out);
+        await out.close();
+        try {
+          await _unpack(tmp, into);
+        } finally {
+          await tmp.delete();
+        }
+        return;
+      }
+      final base = into.absolute.path;
+      for (final f in zip.files) {
+        if (!f.isFile) continue;
+        final name = Uri.decodeFull(f.name);
+        if (_skipped.contains(name.toLowerCase())) continue;
+        final target = File('$base${Platform.pathSeparator}${name.replaceAll('/', Platform.pathSeparator)}').absolute;
+        if (!target.path.startsWith(base)) continue;
+        await target.parent.create(recursive: true);
+        final out = OutputFileStream(target.path);
+        f.writeContent(out);
+        await out.close();
+      }
+    } finally {
+      await input.close();
+    }
+  }
+
+  static String? _pickFromBundle(String manifest) {
+    final xml = XmlDocument.parse(manifest.replaceAll('﻿', ''));
+    final apps = [
+      for (final e in xml.findAllElements('Package'))
+        if ((e.getAttribute('Type') ?? 'application') == 'application' && e.getAttribute('FileName') != null) e,
+    ];
+    for (final arch in ['x64', 'neutral']) {
+      final hit = apps.where((e) => (e.getAttribute('Architecture') ?? 'neutral').toLowerCase() == arch).firstOrNull;
+      if (hit != null) return hit.getAttribute('FileName');
+    }
+    return null;
+  }
+
   @override
-  Future<void> uninstall(InstalledPackage p) => _ps('Remove-AppxPackage -Package ${_q(p.fullName)}');
+  Future<void> uninstall(InstalledPackage p) async {
+    final where = await _ps("(Get-AppxPackage | Where-Object PackageFullName -eq ${_q(p.fullName)}).InstallLocation");
+    await _ps('Remove-AppxPackage -Package ${_q(p.fullName)}');
+    if (where.isNotEmpty && where.toLowerCase().startsWith(_root.absolute.path.toLowerCase())) {
+      try {
+        await Directory(where).delete(recursive: true);
+      } catch (_) {}
+    }
+  }
 
   @override
   Future<void> launch(InstalledPackage p) => _ps(
