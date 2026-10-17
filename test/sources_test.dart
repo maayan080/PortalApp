@@ -72,7 +72,7 @@ void main() {
       expect(a.versionText, '0.2126.2.1');
       expect(a.updated, '2026-10-14');
       expect(a.developer, 'Azahar Team');
-      expect(a.compatibility, ['Xbox Series S', 'X']);
+      expect(a.compatibility, ['Xbox Series S|X']);
       expect(a.coverUri.toString(), 'https://emulationrevival.github.io/xbox-dev-mode/images/emulators/azahar.webp');
       expect(a.mainPackage!.name, 'Azahar_0.2126.2.1.msix');
       expect(a.source, 'https://github.com/danprice142/Azahar-UWP/tree/UWP');
@@ -84,6 +84,65 @@ void main() {
       expect(r.mainPackage, isNull);
       expect(r.archive!.name, 'Ruffle-UWP-1.2.32.0.zip');
       expect(r.installable, isTrue);
+    });
+  });
+
+  group('emulation revival api', () {
+    final json = jsonEncode({
+      'items': [
+        {
+          'id': 'jazz2',
+          'title': 'Jazz Resurrection',
+          'description': 'A platformer',
+          'category': 'Ports',
+          'compatibility': 'Xbox One & Series S|X',
+          'requirements': ['Original game files'],
+          'features': ['Multiplayer'],
+          'imageUrl': 'https://emulationrevival.github.io/img/jazz2.webp',
+          'version': '3.8.0',
+          'releaseDate': '2026-08-22',
+          'releaseNotesUrl': 'https://github.com/o/r/releases/tag/3.8.0',
+          'setupGuideUrl': 'https://wiki.example/guide',
+          'sourceCodeUrl': 'https://github.com/o/r',
+          'downloads': [
+            {'label': 'Download', 'url': 'https://github.com/o/r/releases/download/3.8.0/Jazz2_3.8.0_UWP.zip'},
+          ],
+          'contributors': {
+            'developers': [{'name': 'Deathkiller'}],
+          },
+        },
+        {
+          'id': 'gz',
+          'title': 'A Mod',
+          'category': 'GZDoom Mods',
+          'downloads': [
+            {'label': 'ModDB', 'url': 'https://www.moddb.com/mods/x'},
+          ],
+        },
+      ],
+    });
+    final apps = parseRevivalApi(json);
+
+    test('reads the item, its archive and the details page text', () {
+      final a = apps.first;
+      expect(a.name, 'Jazz Resurrection');
+      expect(a.developer, 'Deathkiller');
+      expect(a.versionText, '3.8.0');
+      expect(a.updated, '2026-08-22');
+      expect(a.archive!.name, 'Jazz2_3.8.0_UWP.zip');
+      expect(a.aboutText, contains('## You will need'));
+      expect(a.aboutText, contains('- Original game files'));
+      expect(a.aboutText, contains('[Setup guide](https://wiki.example/guide)'));
+      expect(normalizeCategory(a.category), 'Port');
+    });
+
+    test('a mod that is only a web link stays a link', () {
+      expect(apps[1].links.single.url, 'https://www.moddb.com/mods/x');
+      expect(apps[1].hasFiles, isFalse);
+    });
+
+    test('a bad document is rejected so the page scraper can take over', () {
+      expect(() => parseRevivalApi('{"nope":1}'), throwsFormatException);
     });
   });
 

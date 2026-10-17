@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
 
@@ -34,6 +36,11 @@ class RevivalSource extends StoreSource {
   @override
   Future<CatalogLoad> load(FetchText fetch) async {
     final root = Uri.parse(base);
+    try {
+      final apps = parseRevivalApi(await fetch(root.resolve('api/catalog.json')));
+      if (apps.isNotEmpty) return CatalogLoad(apps, const []);
+    } catch (_) {}
+
     final apps = <CatalogApp>[];
     final failed = <String>[];
     final pages = await Future.wait([
@@ -123,5 +130,73 @@ String _infoValue(Element modal, String label) {
 
 List<String> _compatibility(Element modal) {
   final text = _infoValue(modal, 'Compatibility');
-  return [for (final p in text.split(RegExp(r'\s*[,|]\s*'))) if (p.isNotEmpty) p];
+  return text.isEmpty ? const [] : [text];
+}
+
+List<CatalogApp> parseRevivalApi(String source) {
+  final root = jsonDecode(source);
+  if (root is! Map || root['items'] is! List) throw const FormatException('Not a catalogue.');
+  final out = <CatalogApp>[];
+  for (final item in (root['items'] as List).whereType<Map>()) {
+    String? str(String k) {
+      final v = item[k];
+      return v is String && v.trim().isNotEmpty ? v.trim() : null;
+    }
+
+    final id = str('id');
+    final title = str('title');
+    if (id == null || title == null) continue;
+
+    final downloads = <CatalogDownload>[
+      for (final d in (item['downloads'] as List? ?? const []).whereType<Map>())
+        if ((d['url'] as String?)?.isNotEmpty ?? false) CatalogDownload(label: (d['label'] as String?) ?? 'Download', url: d['url'] as String),
+    ];
+    if (downloads.isEmpty && str('downloadUrl') != null) downloads.add(CatalogDownload(label: 'Download', url: str('downloadUrl')));
+
+    final version = str('version') ?? downloads.map((d) => versionFromUrl(d.url ?? '')).whereType<String>().firstOrNull;
+    final people = (item['contributors'] as Map?) ?? const {};
+    final names = <String>{
+      for (final role in ['developers', 'modAuthors'])
+        for (final p in (people[role] as List? ?? const []).whereType<Map>())
+          if (p['name'] is String) p['name'] as String,
+    };
+
+    out.add(CatalogApp(
+      slug: id,
+      base: Uri.parse(revivalBase),
+      name: title,
+      summary: str('description') ?? '',
+      versionText: version ?? '',
+      version: parseLooseVersion(version),
+      updated: str('releaseDate') ?? '',
+      developer: names.join(', '),
+      category: str('category') ?? 'App',
+      compatibility: [if (str('compatibility') != null) str('compatibility')!],
+      cover: str('imageUrl'),
+      about: '',
+      aboutText: _aboutOf(item, str('description') ?? ''),
+      downloads: classifyDownloads(downloads, variants: true),
+      source: str('sourceCodeUrl') ?? '',
+      package: null,
+      sourceId: 'revival',
+      sourceName: 'Emulation Revival',
+    ));
+  }
+  return out;
+}
+
+
+String _aboutOf(Map item, String description) {
+  List<String> list(String k) => [for (final v in (item[k] as List? ?? const [])) if (v is String && v.trim().isNotEmpty) v.trim()];
+  final b = StringBuffer(description);
+  final needs = list('requirements');
+  final features = list('features');
+  if (needs.isNotEmpty) b.write('\n\n## You will need\n\n${needs.map((r) => '- $r').join('\n')}');
+  if (features.isNotEmpty) b.write('\n\n## Features\n\n${features.map((f) => '- $f').join('\n')}');
+  final links = [
+    for (final (label, key) in [('Setup guide', 'setupGuideUrl'), ('Tutorial', 'tutorialUrl'), ('Release notes', 'releaseNotesUrl')])
+      if (item[key] is String && (item[key] as String).isNotEmpty) '[$label](${item[key]})',
+  ];
+  if (links.isNotEmpty) b.write('\n\n${links.join('  ·  ')}');
+  return b.toString();
 }
