@@ -94,7 +94,7 @@ List<CatalogApp> parseRevivalPage(String source, Uri page, String category) {
       cover: img == null ? null : page.resolve(img).toString(),
       about: '',
       aboutText: description,
-      downloads: classifyDownloads(downloads),
+      downloads: classifyDownloads(downloads, variants: true),
       source: modal.querySelector('a.source-code-link')?.attributes['href'] ?? '',
       package: null,
       sourceId: 'revival',

@@ -7,11 +7,6 @@ String normalizeName(String s) {
   return n;
 }
 
-String? githubRepo(String url) {
-  final m = RegExp(r'github\.com/([^/\s?#]+)/([^/\s?#]+)', caseSensitive: false).firstMatch(url);
-  return m == null ? null : '${m.group(1)}/${m.group(2)}'.toLowerCase();
-}
-
 Set<String> repoKeys(CatalogApp a) => {
       for (final u in [a.source, for (final d in a.downloads) d.url ?? ''])
         if (githubRepo(u) != null) githubRepo(u)!,
@@ -59,7 +54,7 @@ CatalogApp _combine(CatalogApp primary, List<CatalogApp> others) {
     if (a.version == null) continue;
     if (newest == null || a.version!.compareTo(newest.version!) > 0) newest = a;
   }
-  final installable = all.where((a) => a.installable).firstOrNull;
+  final installable = all.where((a) => a.hasFiles).firstOrNull ?? all.where((a) => a.installable).firstOrNull;
   final lead = installable ?? primary;
   final coverOwner = all.where((a) => a.cover != null).firstOrNull;
 
@@ -83,5 +78,6 @@ CatalogApp _combine(CatalogApp primary, List<CatalogApp> others) {
     sourceId: lead.sourceId,
     sourceName: all.map((a) => a.sourceName).toSet().join(' + '),
     alsoFrom: [for (final a in all) if (!identical(a, lead)) a],
+    origins: all,
   );
 }

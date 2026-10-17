@@ -10,6 +10,7 @@ import '../state/console_session.dart';
 import '../ui/errors.dart';
 import 'catalog_client.dart';
 import 'models.dart';
+import 'sources/link_resolver.dart';
 
 enum StepStatus { pending, active, done, skipped, failed }
 
@@ -35,7 +36,7 @@ String megabytes(int bytes) {
 class InstallRun extends ChangeNotifier {
   InstallRun({required this.app, required this.catalog, required this.session, this.onInstalled});
 
-  final CatalogApp app;
+  CatalogApp app;
   final CatalogClient catalog;
   final ConsoleSession session;
 
@@ -73,6 +74,11 @@ class InstallRun extends ChangeNotifier {
     final temp = await Directory.systemTemp.createTemp('portalapp_');
     var current = steps.first;
     try {
+      if (app.needsResolving) {
+        current = steps[0];
+        _set(current, StepStatus.active, detail: 'Finding the download', fraction: null);
+        app = await LinkResolver(catalog.text).resolve(app);
+      }
       final main = app.mainPackage;
       final archive = app.archive;
       if (main == null && archive == null) throw PortalException('${app.name} has no package to install.');

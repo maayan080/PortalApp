@@ -44,7 +44,7 @@ bool _hasPackageExtension(String name) {
 
 // the first package is the app, later ones are dependencies, unless the label says otherwise.
 // a link with no package extension, like a releases page, can only be opened in a browser
-List<CatalogDownload> classifyDownloads(List<CatalogDownload> raw) {
+List<CatalogDownload> classifyDownloads(List<CatalogDownload> raw, {bool variants = false}) {
   final out = <CatalogDownload>[];
   var haveMain = false;
   for (final d in raw) {
@@ -55,7 +55,7 @@ List<CatalogDownload> classifyDownloads(List<CatalogDownload> raw) {
       out.add(d.withRole(DownloadRole.archive));
     } else if (_hasPackageExtension(name)) {
       final dependency = RegExp(r'dependenc|framework|runtime').hasMatch(d.label.toLowerCase()) || name.startsWith('microsoft.');
-      if (!dependency && !haveMain) {
+      if (!dependency && (variants || !haveMain)) {
         haveMain = true;
         out.add(d.withRole(DownloadRole.package));
       } else {
@@ -102,6 +102,7 @@ class CatalogApp {
     this.sourceId = '',
     this.sourceName = '',
     this.alsoFrom = const [],
+    this.origins = const [],
   });
 
   final String slug;
@@ -129,6 +130,8 @@ class CatalogApp {
   final String sourceName;
 
   final List<CatalogApp> alsoFrom;
+
+  final List<CatalogApp> origins;
 
   factory CatalogApp.fromJson(String slug, Uri base, Map<String, dynamic> j,
       {String sourceId = 'raccoon', String sourceName = 'Raccoon Dev Store'}) {
@@ -177,6 +180,34 @@ class CatalogApp {
   Uri? get coverUri => cover == null ? null : base.resolve(cover!);
   Uri get aboutUri => base.resolve(about);
 
+  List<CatalogDownload> get packages => downloads.where((d) => d.role == DownloadRole.package).toList();
+
+  CatalogApp copyWith({List<CatalogDownload>? downloads, List<CatalogApp>? origins}) => CatalogApp(
+        slug: slug,
+        base: base,
+        name: name,
+        summary: summary,
+        versionText: versionText,
+        version: version,
+        updated: updated,
+        developer: developer,
+        category: category,
+        compatibility: compatibility,
+        cover: cover,
+        about: about,
+        downloads: downloads ?? this.downloads,
+        source: source,
+        package: package,
+        aboutText: aboutText,
+        sourceId: sourceId,
+        sourceName: sourceName,
+        alsoFrom: alsoFrom,
+        origins: origins ?? this.origins,
+      );
+
+  CatalogApp withMain(CatalogDownload d) =>
+      copyWith(downloads: [d, for (final x in downloads) if (!identical(x, d)) x]);
+
   CatalogDownload? get mainPackage => downloads.where((d) => d.role == DownloadRole.package).firstOrNull;
   List<CatalogDownload> get dependencies => downloads.where((d) => d.role == DownloadRole.dependency).toList();
   CatalogDownload? get archive => downloads.where((d) => d.role == DownloadRole.archive).firstOrNull;
@@ -184,7 +215,13 @@ class CatalogApp {
   List<CatalogDownload> get links => downloads.where((d) => d.role == DownloadRole.link).toList();
 
   // only apps with a real package download can be sent to a console
-  bool get installable => mainPackage != null || archive != null;
+  bool get installable => mainPackage != null || archive != null || resolvable;
+
+  bool get resolvable => links.any((l) => isMediaFire(l.url) || isGithubRelease(l.url)) || githubRepo(source) != null;
+
+  bool get hasFiles => mainPackage != null || archive != null;
+
+  bool get needsResolving => !hasFiles && resolvable;
 }
 
 // installed against catalogue, as the pages show it
@@ -197,3 +234,13 @@ class AppMatch {
   final InstalledPackage? installed;
   final AppStatus status;
 }
+
+String? githubRepo(String url) {
+  final m = RegExp(r'github\.com/([^/\s?#]+)/([^/\s?#]+)', caseSensitive: false).firstMatch(url);
+  return m == null ? null : '${m.group(1)}/${m.group(2)}'.toLowerCase();
+}
+
+bool isMediaFire(String? url) => url != null && Uri.tryParse(url)?.host.endsWith('mediafire.com') == true;
+
+bool isGithubRelease(String? url) =>
+    url != null && url.contains('github.com') && RegExp(r'/releases(/|$)').hasMatch(url) && !url.contains('/releases/download/');

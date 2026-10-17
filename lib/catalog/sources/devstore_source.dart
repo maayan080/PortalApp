@@ -68,7 +68,7 @@ List<CatalogApp> parseDevStorePage(String source, Uri page) {
       cover: img == null ? null : page.resolve(img).toString(),
       about: '',
       aboutText: description,
-      downloads: classifyDownloads(download == null ? const [] : [CatalogDownload(label: 'Download App', url: download)]),
+      downloads: classifyDownloads(download == null ? const [] : [CatalogDownload(label: 'Download App', url: download)], variants: true),
       source: official,
       package: null,
       sourceId: 'devstore',

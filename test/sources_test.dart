@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:koni_archive/io.dart' hide Archive;
 import 'package:portal_app/catalog/install_run.dart';
 import 'package:portal_app/catalog/sources/devstore_source.dart';
+import 'package:portal_app/catalog/sources/link_resolver.dart';
 import 'package:portal_app/catalog/sources/merge.dart';
 import 'package:portal_app/catalog/sources/revival_source.dart';
 import 'package:portal_app/catalog/sources/store_source.dart';
@@ -98,8 +99,10 @@ void main() {
       expect(apps.first.source, 'https://github.com/danprice142/Azahar-UWP');
     });
 
-    test('a MediaFire page is kept as a link for now', () {
-      expect(apps[1].installable, isFalse);
+    test('a MediaFire page is kept as a link and resolved on install', () {
+      expect(apps[1].installable, isTrue);
+      expect(apps[1].needsResolving, isTrue);
+      expect(apps[1].mainPackage, isNull);
       expect(apps[1].links.single.url, contains('mediafire.com'));
       expect(apps[1].versionText, '1.0.0.0');
     });
@@ -191,6 +194,51 @@ void main() {
       final z = Archive()..addFile(ArchiveFile.bytes('readme.txt', utf8.encode('hi')));
       final zip = File('${dir.path}/empty.zip')..writeAsBytesSync(ZipEncoder().encode(z));
       expect(() => unpackPackages(zip, Directory('${dir.path}/out2')), throwsA(anything));
+    });
+  });
+
+  group('resolving links', () {
+    test('mediafire: the button holds the direct file', () {
+      const open = '<a class="input popsok" aria-label="Download file" id="downloadButton" href="https://download1.mediafire.com/abc/def/App.zip">Download</a>';
+      expect(parseMediaFire(open), 'https://download1.mediafire.com/abc/def/App.zip');
+      final scrambled = base64.encode(utf8.encode('https://download2.mediafire.com/x/y/App.zip'));
+      expect(parseMediaFire('<a id="downloadButton" href="#" data-scrambled-url="$scrambled">Download</a>'), 'https://download2.mediafire.com/x/y/App.zip');
+      expect(parseMediaFire('<html>nothing</html>'), isNull);
+    });
+
+    final release = jsonEncode({
+      'assets': [
+        {'name': 'App_1.0.0.0_x64.msixbundle', 'browser_download_url': 'https://github.com/o/r/releases/download/v1/App_1.0.0.0_x64.msixbundle', 'size': 52428800},
+        {'name': 'App_1.0.0.0_arm64.msixbundle', 'browser_download_url': 'https://github.com/o/r/releases/download/v1/App_1.0.0.0_arm64.msixbundle', 'size': 52428800},
+        {'name': 'Source code.zip', 'browser_download_url': 'https://github.com/o/r/archive/v1.zip', 'size': 1000},
+        {'name': 'notes.txt', 'browser_download_url': 'https://github.com/o/r/releases/download/v1/notes.txt', 'size': 10},
+      ],
+    });
+
+    test('github: keeps installable files and drops other cpus and source', () {
+      final names = pickGithubAssets(release).map((d) => d.name);
+      expect(names, ['App_1.0.0.0_x64.msixbundle']);
+    });
+
+    test('a repo-only listing becomes installable files', () async {
+      final app = parseDevStorePage(devCards, devPage).last.copyWith();
+      final resolver = LinkResolver((uri) async {
+        if (uri.host == 'www.mediafire.com') return '<a id="downloadButton" href="https://download9.mediafire.com/k/OldGame_1.0.0.0_x64.appx">x</a>';
+        throw StateError('unexpected $uri');
+      });
+      final out = await resolver.resolve(app);
+      expect(out.mainPackage!.name, 'OldGame_1.0.0.0_x64.appx');
+    });
+
+    test('an app with only a github page asks the releases api', () async {
+      final app = parseDevStorePage(devCards.replaceAll('https://www.mediafire.com/file/abc/OldGame_1.0.0.0_x64.appx/file', 'https://github.com/o/r/releases'), devPage).last;
+      final asked = <Uri>[];
+      final out = await LinkResolver((uri) async {
+        asked.add(uri);
+        return release;
+      }).resolve(app);
+      expect(asked.single.toString(), 'https://api.github.com/repos/o/r/releases/latest');
+      expect(out.mainPackage!.name, 'App_1.0.0.0_x64.msixbundle');
     });
   });
 }
