@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../portal/local_pc_client.dart';
 import '../portal/portal_client.dart';
 import '../state/catalog_store.dart';
 import '../state/console_session.dart';
@@ -193,6 +194,14 @@ class _ConnectPageState extends State<ConnectPage> {
                     ),
                   FilledButton(onPressed: _busy ? null : _connect, child: Text(_busy ? _step : 'Connect')),
                   if (_busy) const Padding(padding: EdgeInsets.only(top: Brand.s3), child: LinearProgressIndicator(minHeight: 3)),
+                  if (LocalPcClient.available)
+                    Padding(
+                      padding: const EdgeInsets.only(top: Brand.s2),
+                      child: TextButton(
+                        onPressed: _busy ? null : () => _openWith(LocalPcClient()),
+                        child: const Text('Try on this PC instead'),
+                      ),
+                    ),
                   if (widget.extras != null) widget.extras!(context, _busy, _openWith),
                   if (_saved.isNotEmpty) ...[
                     const SizedBox(height: Brand.s6),
