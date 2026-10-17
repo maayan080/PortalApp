@@ -2,7 +2,7 @@ import '../portal/models.dart';
 import '../portal/package_info.dart';
 
 // what a catalogue download is, decided from its label and file name
-enum DownloadRole { package, dependency, checksum, link }
+enum DownloadRole { package, dependency, checksum, archive, link }
 
 class CatalogDownload {
   const CatalogDownload({
@@ -51,6 +51,8 @@ List<CatalogDownload> classifyDownloads(List<CatalogDownload> raw) {
     final name = d.name.toLowerCase();
     if (name.endsWith('.sha256') || name.endsWith('.sha-256') || RegExp(r'checksum|sha-?256').hasMatch(d.label.toLowerCase())) {
       out.add(d.withRole(DownloadRole.checksum));
+    } else if (name.endsWith('.zip')) {
+      out.add(d.withRole(DownloadRole.archive));
     } else if (_hasPackageExtension(name)) {
       final dependency = RegExp(r'dependenc|framework|runtime').hasMatch(d.label.toLowerCase()) || name.startsWith('microsoft.');
       if (!dependency && !haveMain) {
@@ -96,6 +98,10 @@ class CatalogApp {
     required this.downloads,
     required this.source,
     required this.package,
+    this.aboutText,
+    this.sourceId = '',
+    this.sourceName = '',
+    this.alsoFrom = const [],
   });
 
   final String slug;
@@ -118,7 +124,14 @@ class CatalogApp {
   // optional identity name from project.json, like BanditVault.Launcher
   final String? package;
 
-  factory CatalogApp.fromJson(String slug, Uri base, Map<String, dynamic> j) {
+  final String? aboutText;
+  final String sourceId;
+  final String sourceName;
+
+  final List<CatalogApp> alsoFrom;
+
+  factory CatalogApp.fromJson(String slug, Uri base, Map<String, dynamic> j,
+      {String sourceId = 'raccoon', String sourceName = 'Raccoon Dev Store'}) {
     String? str(String k) {
       final v = j[k];
       return v is String && v.trim().isNotEmpty ? v.trim() : null;
@@ -151,6 +164,8 @@ class CatalogApp {
       downloads: classifyDownloads(downloads),
       source: str('source') ?? '',
       package: str('package'),
+      sourceId: sourceId,
+      sourceName: sourceName,
     );
   }
 
@@ -164,11 +179,12 @@ class CatalogApp {
 
   CatalogDownload? get mainPackage => downloads.where((d) => d.role == DownloadRole.package).firstOrNull;
   List<CatalogDownload> get dependencies => downloads.where((d) => d.role == DownloadRole.dependency).toList();
+  CatalogDownload? get archive => downloads.where((d) => d.role == DownloadRole.archive).firstOrNull;
   CatalogDownload? get checksum => downloads.where((d) => d.role == DownloadRole.checksum).firstOrNull;
   List<CatalogDownload> get links => downloads.where((d) => d.role == DownloadRole.link).toList();
 
   // only apps with a real package download can be sent to a console
-  bool get installable => mainPackage != null;
+  bool get installable => mainPackage != null || archive != null;
 }
 
 // installed against catalogue, as the pages show it

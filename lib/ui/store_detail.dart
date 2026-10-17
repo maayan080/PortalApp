@@ -49,6 +49,7 @@ class _StoreDetailState extends State<StoreDetail> {
         DownloadRole.package => 'App',
         DownloadRole.dependency => 'Installed with the app',
         DownloadRole.checksum => 'Used to check the download',
+        DownloadRole.archive => 'Unpacked, then everything inside is installed',
         DownloadRole.link => 'Opens in your browser',
       };
 

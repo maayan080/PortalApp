@@ -57,6 +57,8 @@ class CatalogClient {
     }
   }
 
+  Future<String> text(Uri uri) => _text(uri);
+
   Future<CatalogLoad> load() async {
     final index = jsonDecode(await _text(base.resolve('catalog.json')));
     if (index is! List) throw PortalException('catalog.json must be a list.');
@@ -81,7 +83,7 @@ class CatalogClient {
     return CatalogLoad(apps, failed);
   }
 
-  Future<String> about(CatalogApp app) => _text(app.aboutUri);
+  Future<String> about(CatalogApp app) async => app.aboutText ?? await _text(app.aboutUri);
 
   Future<String> checksumFor(CatalogApp app, CatalogDownload d) async {
     final hash = parseChecksum(await _text(app.resolve(d)));

@@ -85,7 +85,7 @@ class _StorePageState extends State<StorePage> {
             children: [
               PageHeader(
                 title: 'Store',
-                subtitle: catalog.loaded ? 'Raccoon Dev Store  ·  ${catalog.apps.length} ${catalog.apps.length == 1 ? 'app' : 'apps'}' : 'Raccoon Dev Store',
+                subtitle: catalog.loaded ? '${catalog.apps.length} ${catalog.apps.length == 1 ? 'app' : 'apps'}' : 'Raccoon, Emulation Revival, Xbox Dev Store',
                 trailing: IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: catalog.loading ? null : catalog.load),
               ),
               SearchField(controller: _search, hint: 'Search the store'),

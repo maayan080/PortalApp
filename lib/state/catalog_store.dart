@@ -6,13 +6,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../catalog/catalog_client.dart';
 import '../catalog/matching.dart';
 import '../catalog/models.dart';
+import '../catalog/sources/devstore_source.dart';
+import '../catalog/sources/merge.dart';
+import '../catalog/sources/raccoon_source.dart';
+import '../catalog/sources/revival_source.dart';
+import '../catalog/sources/store_source.dart';
 import '../portal/models.dart';
 import '../portal/package_info.dart';
 
 class CatalogStore extends ChangeNotifier {
-  CatalogStore({String? url, CatalogClient Function(String url)? clientFactory})
+  CatalogStore({String? url, CatalogClient Function(String url)? clientFactory, List<StoreSource>? extraSources})
       : _url = url ?? defaultCatalogueUrl,
-        _factory = clientFactory ?? CatalogClient.new;
+        _factory = clientFactory ?? CatalogClient.new,
+        _extra = extraSources ?? (clientFactory == null ? const [RevivalSource(), DevStoreSource()] : const []);
+
+  final List<StoreSource> _extra;
+
+  Map<String, String> sourceErrors = {};
 
   final CatalogClient Function(String url) _factory;
 
@@ -44,11 +54,22 @@ class CatalogStore extends ChangeNotifier {
   Future<void> load() async {
     loading = true;
     error = null;
+    sourceErrors = {};
     notifyListeners();
     try {
-      final result = await client.load();
-      apps = result.apps;
-      failed = result.failed;
+      final c = client;
+      final sources = [RaccoonSource(c), ..._extra]..sort((a, b) => a.priority.compareTo(b.priority));
+      final results = await Future.wait([
+        for (final src in sources)
+          src.load(c.text).then<CatalogLoad?>((r) => r).catchError((Object e) {
+            sourceErrors[src.name] = e is PortalException ? e.message : friendlyCatalogueError(e);
+            return null;
+          }),
+      ]);
+      final good = [for (final r in results) if (r != null) r];
+      if (good.isEmpty) throw PortalException(sourceErrors.values.first);
+      apps = mergeApps([for (final r in good) r.apps]);
+      failed = [for (final r in good) ...r.failed];
       loaded = true;
     } catch (e) {
       error = e is PortalException ? e.message : friendlyCatalogueError(e);

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 
 import '../portal/install_plan.dart';
@@ -73,13 +74,14 @@ class InstallRun extends ChangeNotifier {
     var current = steps.first;
     try {
       final main = app.mainPackage;
-      if (main == null) throw PortalException('${app.name} has no package to install.');
+      final archive = app.archive;
+      if (main == null && archive == null) throw PortalException('${app.name} has no package to install.');
 
       // download
       current = steps[0];
-      final wanted = [main, ...app.dependencies];
       final files = <File>[];
       _set(current, StepStatus.active, detail: 'Starting', fraction: null);
+      final wanted = main == null ? [archive!] : [main, ...app.dependencies];
       for (var i = 0; i < wanted.length; i++) {
         final d = wanted[i];
         final label = wanted.length == 1 ? d.name : '${d.name} (${i + 1} of ${wanted.length})';
@@ -94,7 +96,14 @@ class InstallRun extends ChangeNotifier {
           },
         ));
       }
-      _set(current, StepStatus.done, detail: wanted.length == 1 ? main.name : '${wanted.length} files');
+      if (main == null) {
+        _set(current, StepStatus.active, detail: 'Unpacking ${archive!.name}', fraction: null);
+        final unpacked = await unpackPackages(files.first, Directory('${temp.path}${Platform.pathSeparator}unpacked'));
+        files
+          ..clear()
+          ..addAll(unpacked);
+      }
+      _set(current, StepStatus.done, detail: files.length == 1 ? files.first.uri.pathSegments.last : '${files.length} files');
 
       // check
       current = steps[1];
@@ -153,4 +162,33 @@ class InstallRun extends ChangeNotifier {
       } catch (_) {}
     }
   }
+}
+
+bool _isPackage(String path) {
+  final lower = path.toLowerCase();
+  return packageExtensions.any((e) => lower.endsWith('.$e'));
+}
+
+Future<List<File>> unpackPackages(File zip, Directory into) async {
+  await into.create(recursive: true);
+  await extractFileToDisk(zip.path, into.path);
+  final found = [
+    await for (final e in into.list(recursive: true, followLinks: false))
+      if (e is File && _isPackage(e.path)) e,
+  ];
+  if (found.isEmpty) throw PortalException('There is no app package inside ${zip.uri.pathSegments.last}.');
+
+  final infos = <PackageInfo>[];
+  for (final f in found) {
+    infos.add(await readPackageInfo(f));
+  }
+  bool framework(PackageInfo i) => i.name.toLowerCase().startsWith('microsoft.');
+  final apps = [for (final i in infos) if (!framework(i)) i]
+    ..sort((a, b) {
+      final da = a.fileName.toLowerCase().contains('debug') ? 1 : 0;
+      final db = b.fileName.toLowerCase().contains('debug') ? 1 : 0;
+      return da != db ? da - db : a.fileName.compareTo(b.fileName);
+    });
+  if (apps.isEmpty) throw PortalException('There is no app package inside ${zip.uri.pathSegments.last}.');
+  return [apps.first.file, for (final i in infos) if (framework(i)) i.file];
 }
